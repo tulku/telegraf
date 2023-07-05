@@ -55,15 +55,18 @@ type Parser struct {
 }
 
 type Config struct {
-	MetricQuery  string            `toml:"metric_name"`
-	Selection    string            `toml:"metric_selection"`
-	Timestamp    string            `toml:"timestamp"`
-	TimestampFmt string            `toml:"timestamp_format"`
-	Timezone     string            `toml:"timezone"`
-	Tags         map[string]string `toml:"tags"`
-	Fields       map[string]string `toml:"fields"`
-	FieldsInt    map[string]string `toml:"fields_int"`
-	FieldsHex    []string          `toml:"fields_bytes_as_hex"`
+	MetricQuery              string            `toml:"metric_name"`
+	Selection                string            `toml:"metric_selection"`
+	Timestamp                string            `toml:"timestamp"`
+	TimestampFmt             string            `toml:"timestamp_format"`
+	TagNameFutureTimestamp   string            `toml:"tag_name_future_timestamp"`
+	TagValueFutureTimestamp  string            `toml:"tag_value_future_timestamp"`
+	FutureTimestampTolerance int64             `toml:"future_timestamp_tolerance"`
+	Timezone                 string            `toml:"timezone"`
+	Tags                     map[string]string `toml:"tags"`
+	Fields                   map[string]string `toml:"fields"`
+	FieldsInt                map[string]string `toml:"fields_int"`
+	FieldsHex                []string          `toml:"fields_bytes_as_hex"`
 
 	FieldSelection  string `toml:"field_selection"`
 	FieldNameQuery  string `toml:"field_name"`
@@ -260,7 +263,7 @@ func (p *Parser) parseQuery(starttime time.Time, doc, selected dataNode, config 
 	}
 
 	// By default take the time the parser was invoked and override the value
-	// with the queried timestamp if an expresion was specified.
+	// with the queried timestamp if an expression was specified.
 	timestamp = starttime
 	if len(config.Timestamp) > 0 {
 		v, err := p.executeQuery(doc, selected, config.Timestamp)
@@ -274,9 +277,16 @@ func (p *Parser) parseQuery(starttime time.Time, doc, selected dataNode, config 
 			}
 		}
 	}
-
 	// Query tags and add default ones
 	tags := make(map[string]string)
+
+	if len(config.TagNameFutureTimestamp) > 0 && len(config.TagValueFutureTimestamp) > 0 {
+		if (timestamp.Sub(starttime)).Nanoseconds() > config.FutureTimestampTolerance {
+			tags[config.TagNameFutureTimestamp] = config.TagValueFutureTimestamp
+		}
+
+	}
+
 	for name, query := range config.Tags {
 		// Execute the query and cast the returned values into strings
 		v, err := p.executeQuery(doc, selected, query)
